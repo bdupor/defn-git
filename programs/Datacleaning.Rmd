@@ -29,7 +29,6 @@ library(cdlTools) #This package has fips -> state code functions
 library(readxl) #This package allows reading in excel files
 
 knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_knit$set(root.dir = "programs")
 
 ```
 
