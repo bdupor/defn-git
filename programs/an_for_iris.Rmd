@@ -42,6 +42,7 @@ library(stats)
 library(texreg)
 library(plyr)
 library(AER)
+library(ggpubr)
 
 source("../../ram_rcode/PartialGMM2S.R")
 source("../../ram_rcode/mapToMat.R")
@@ -103,7 +104,8 @@ df <- df %>%
                      (horiz2+1)*dplyr::lag(rmil2,1))/dplyr::lag(rgdp_nat,1),
          Fhx2_nat = 100*(zoo::rollsum(rbea_nat,k=horiz2+1,align="left",fill=NA) -
                      (horiz2+1)*dplyr::lag(rbea_nat,1))/dplyr::lag(rgdp_nat,1),
-         Fhx2_nat50 = (1/50)*Fhx2_nat,
+         Fhx2_spill = (1/8)*(Fhx2_nat - Fhx2),
+         Fhx2_nat50 = (1/9)*Fhx2_nat,
 #         Dx  =  (1/horiz)*100*((rmilitary_all-dplyr::lag(rmilitary_all,horiz))/dplyr::lag(rgdp_nat,horiz)),
 #         Dx_nat  =  (1/horiz)*100*((rmilitary_all_nat-dplyr::lag(rmilitary_all_nat,horiz))/dplyr::lag(rgdp_nat,horiz)),
 #         Dx_nat50  =  (1/50)*(1/horiz)*100*((rmilitary_all_nat-dplyr::lag(rmilitary_all_nat,horiz))/dplyr::lag(rgdp_nat,horiz)),
@@ -128,10 +130,20 @@ hall <- subset(df,year>1966 & year<2008)
 #Dx2_spill = (1-s_{it})*x_t
 #Dx2_nat = x_t
 #Switch to an "Aggregable function" own slope identical across groups and aggregte slopes state specific
-full_regression <- lm(data=hall,Dy ~ as.factor(fips) + Dx2  + Dx2_spill - 1)
+full_regression <- lm(data=hall,Fhy ~ as.factor(fips) + Fhx2  + Fhx2_spill - 1)
 summary(full_regression)
 
-partial_regression <- lm(data=hall,Dy ~ as.factor(fips) + Dx2  - 1)
+partial_regression <- lm(data=hall,Fhy ~ as.factor(fips) + Fhx2  - 1, na.action = "na.exclude")
+
+hall$resid <- resid(partial_regression)
+#Scatter resid agaisnt Dx2_spill (no weighting, small circles, red means low x, green means high x)
+bmark_scatterplot <- ggplot(hall, aes(x=Fhx2_spill, y= resid)) +
+  geom_point(aes(color = Fhx2_nat)) +
+  geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+  labs(x='Spillover', y='Residuals') +
+  scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "gray")
+bmark_scatterplot
+ggsave("../output/scatterplot_dots.pdf", bmark_scatterplot, device = "pdf", height = 5, width = 9)
 #NEXT, SAVE RESIDUAL, resid
 
 #Scatter resid agaisnt Dx2_spill (no weighting, small circles, red means low x, green means high x)
@@ -141,7 +153,7 @@ partial_regression <- lm(data=hall,Dy ~ as.factor(fips) + Dx2  - 1)
 
 ```{r}
 
-agg_regression <- lm(data=subset(hall,fips==1),Dy_nat ~ Dx2_nat)
+agg_regression <- lm(data=subset(hall,fips==1),Fhy_nat ~ Fhx2_nat)
 summary(agg_regression)
 
 
