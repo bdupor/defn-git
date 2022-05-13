@@ -52,8 +52,8 @@ maxiter <- 1000   #maximum iteration of iterated GMM procedure
 k_t <- 0         #I don't remember what this does
 yy <- 10        #Bartlett window goes from -yy to yy
 second <- 1      #Second moment independence if value = 1
-horiz <- 1
-horiz2 <- 1
+horiz <- 4
+horiz2 <- 4
 
 #df2 <- read_dta("../data/defn_temp.dta")
 #lm <- ivreg(data=df2,y~x + as.factor(fips) | as.factor(fips) + as.factor(fips)*z_nat)
@@ -135,5 +135,14 @@ partial_regression <- lm(data=hall,Dy ~ as.factor(fips) + Dx2  - 1)
 #NEXT, SAVE RESIDUAL, resid
 
 #Scatter resid agaisnt Dx2_spill (no weighting, small circles, red means low x, green means high x)
+
+```
+
+
+```{r}
+
+agg_regression <- lm(data=subset(hall,fips==1),Dy_nat ~ Dx2_nat)
+summary(agg_regression)
+
 
 ```
