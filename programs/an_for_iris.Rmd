@@ -46,6 +46,7 @@ library(ggpubr)
 
 source("../../ram_rcode/PartialGMM2S.R")
 source("../../ram_rcode/mapToMat.R")
+source("../programs/gmm2s.R")
 
 tol <- 1e-6    #set's tolerance to decide convergence of parameter estimate
 guess <- -99  
@@ -73,6 +74,7 @@ df <- df %>%
   group_by(fips) %>%
   mutate(s_mil = rmilitary_all/rmilitary_all_nat)
 
+#create a dividing rule so that we can get state level military spending back to 1961
 df2 <- df %>%
   filter(is.na(fips)!=1) %>%
   group_by(fips) %>%
@@ -81,15 +83,6 @@ df2 <- df %>%
          s_mil2 = ifelse(year>=1950 & year<=1965,s_mil66,
                          ifelse(year>=2007 & year<=2011,s_mil06,s_mil)))
 
-#df$s_mil = df$s_mil[is.na(df$s_mil)]
-
-
-#         s_mil2 = ifelse(year>1949 & year<1965,s_mil[year==1966],s_mil))
-
-
-#df2 <- df %>%
-#  group_by(fips) %>%
-#  mutate(s_mil2 = s_mil[year==2006])
          
 df2 <- df2 %>%
   group_by(fips) %>%
@@ -112,30 +105,41 @@ df2 <- df2 %>%
                      (horiz2+1)*dplyr::lag(rbea_nat,1))/dplyr::lag(rgdp_nat,1),
          Fhx2_spill = (1/(N-1))*(Fhx2_nat - Fhx2),
          Fhx2_nat50 = (1/N)*Fhx2_nat,
-#         Dx  =  (1/horiz)*100*((rmilitary_all-dplyr::lag(rmilitary_all,horiz))/dplyr::lag(rgdp_nat,horiz)),
-#         Dx_nat  =  (1/horiz)*100*((rmilitary_all_nat-dplyr::lag(rmilitary_all_nat,horiz))/dplyr::lag(rgdp_nat,horiz)),
-#         Dx_nat50  =  (1/50)*(1/horiz)*100*((rmilitary_all_nat-dplyr::lag(rmilitary_all_nat,horiz))/dplyr::lag(rgdp_nat,horiz)),
          fhy = 100*(zoo::rollsum(rgdp,k=horiz2+1,align="left",fill=NA) -
                      (horiz2+1)*dplyr::lag(rgdp,1))/dplyr::lag(rgdp,1),
          fhx2 = 100*(zoo::rollsum(rmil2,k=horiz2+1,align="left",fill=NA) -
                      (horiz2+1)*dplyr::lag(rmil2,1))/dplyr::lag(rgdp,1))
-#         Dx_spill = (1/49)*(50*Dx_nat - Dx),
-#         s   = dplyr::lag(gdp/gdp_nat,horiz),
-#         s2 = s*s,
-#         invS = 1/s,
-#         Dx_nat2 = s^(3/horiz)*0.5*100*((military_all_nat-dplyr::lag(military_all_nat,horiz))/dplyr::lag(gdp_nat,horiz)))
 
 
-hall <- subset(df2,year>=1964 & year<=2002)
+hall <- subset(df2,year>=1964 & year<=2006)
+
+```
+
+```{r}
+#---------------------Run AA and LS Decomps using the R code I wrote-----------
+
+Ti <- length(hall$Fhy)/N
+
+y <- matrix(hall$Fhy,Ti*N,1)
+X <- model.matrix(~factor(fips) + Fhx2 + Fhx2_spill,data=hall)
+Z <- model.matrix(~Fhx2 + Fhx2_spill,data=hall)
+
+tol <- 0.001    #set's tolerance to decide convergence of parameter estimate
+guess <- -99  
+maxiter <- 1    #maximum iteration of iterated GMM procedure
+k_t <- 1        #I don't remember what this does
+yy <- 6   #Bartlett window goes from -yy to yy
+second <-0      #Second moment independence if value = 1
+
+est_common <- gmm2S(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
 
 
-#IRIS!  Here it is (this is the full regression)
+```
 
-#Dy = y_{it}
-#Dx2 = s_{it}*x_t
-#Dx2_spill = (1-s_{it})*x_t
-#Dx2_nat = x_t
-#Switch to an "Aggregable function" own slope identical across groups and aggregte slopes state specific
+
+
+```{r}
+#----------------------Examine in the residualized y and spillover variable-----
 full_regression <- lm(data=hall,Fhy ~ as.factor(fips) + Fhx2  + Fhx2_spill - 1)
 summary(full_regression)
 
@@ -222,6 +226,9 @@ ggsave("../output/bmark_scatterplot_odd.pdf", bmark_scatterplot_odd, device = "p
 ```
 
 
+
+
+
 ```{r}
 
 agg_regression <- lm(data=subset(hall,fips==1),Fhy_nat ~ Fhx2_nat)
@@ -231,8 +238,6 @@ agg_scatterplot <- ggplot(subset(hall,fips==1), aes(x=Fhx2_nat, y= Fhy_nat,label
   geom_smooth(method = "lm", se = FALSE) +
   geom_text(hjust=0,vjust=0) + theme_pubr() +
   labs(x='Change in defense spending', y='Change in ouput') 
-  #geom_point(aes(color = Fhx2_nat)) +
-   #+scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "gray")
 agg_scatterplot
 
 
