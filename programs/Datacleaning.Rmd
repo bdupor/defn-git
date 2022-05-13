@@ -411,3 +411,5 @@ census_panel$F10DrLmilitary_all_leaveout - compare_panel$F10DrLmilitary_all_leav
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
