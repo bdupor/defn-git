@@ -62,6 +62,9 @@ horiz2 <- 4
 
 df <- read_dta("../data/cleaned_census_panel.dta")
 df <- df[order(df$fips,df$year),]
+
+N <- length(unique(df$fips))
+
 #df <- df %>%
 #  group_by(year) %>%
 #  mutate(military_nat=sum(military))
@@ -70,10 +73,13 @@ df <- df %>%
   group_by(fips) %>%
   mutate(s_mil = rmilitary_all/rmilitary_all_nat)
 
-#df2 <- df %>%
-#  filter(is.na(fips)!=1) %>%
-#  group_by(fips) %>%
-#  mutate(s_mil66=s_mil[year==1966])
+df2 <- df %>%
+  filter(is.na(fips)!=1) %>%
+  group_by(fips) %>%
+  mutate(s_mil66=s_mil[year==1966],
+         s_mil06=s_mil[year==2006],
+         s_mil2 = ifelse(year>=1950 & year<=1965,s_mil66,
+                         ifelse(year>=2007 & year<=2011,s_mil06,s_mil)))
 
 #df$s_mil = df$s_mil[is.na(df$s_mil)]
 
@@ -85,17 +91,17 @@ df <- df %>%
 #  group_by(fips) %>%
 #  mutate(s_mil2 = s_mil[year==2006])
          
-df <- df %>%
+df2 <- df2 %>%
   group_by(fips) %>%
-  mutate(rmil2 = s_mil*rbea_nat,
+  mutate(rmil2 = s_mil2*rbea_nat,
          dy  = (1/horiz)*100*((rgdp-dplyr::lag(rgdp,horiz))/dplyr::lag(rgdp,horiz)),
          dx2  =  (1/horiz)*100*((rmil2-dplyr::lag(rmil2,horiz))/dplyr::lag(rgdp,horiz)),
          Dy  = (1/horiz)*100*((rgdp-dplyr::lag(rgdp,horiz))/dplyr::lag(rgdp_nat,horiz)),
          Dy_nat = (1/horiz)*100*((rgdp_nat-dplyr::lag(rgdp_nat,horiz))/dplyr::lag(rgdp_nat,horiz)),
          Dx2  =  (1/horiz)*100*((rmil2-dplyr::lag(rmil2,horiz))/dplyr::lag(rgdp_nat,horiz)),
          Dx2_nat  =  (1/horiz)*100*((rbea_nat-dplyr::lag(rbea_nat,horiz))/dplyr::lag(rgdp_nat,horiz)),
-         Dx2_spill = (1/8)*(Dx2_nat - Dx2),
-         Dx2_nat50  =  (1/9)*(1/horiz)*100*((rbea_nat-dplyr::lag(rbea_nat,horiz))/dplyr::lag(rgdp_nat,horiz)),
+         Dx2_spill = (1/(N-1))*(Dx2_nat - Dx2),
+         Dx2_nat50  =  (1/N)*(1/horiz)*100*((rbea_nat-dplyr::lag(rbea_nat,horiz))/dplyr::lag(rgdp_nat,horiz)),
          Fhy = 100*(zoo::rollsum(rgdp,k=horiz2+1,align="left",fill=NA) -
                      (horiz2+1)*dplyr::lag(rgdp,1))/dplyr::lag(rgdp_nat,1),
          Fhy_nat = 100*(zoo::rollsum(rgdp_nat,k=horiz2+1,align="left",fill=NA) -
@@ -104,8 +110,8 @@ df <- df %>%
                      (horiz2+1)*dplyr::lag(rmil2,1))/dplyr::lag(rgdp_nat,1),
          Fhx2_nat = 100*(zoo::rollsum(rbea_nat,k=horiz2+1,align="left",fill=NA) -
                      (horiz2+1)*dplyr::lag(rbea_nat,1))/dplyr::lag(rgdp_nat,1),
-         Fhx2_spill = (1/8)*(Fhx2_nat - Fhx2),
-         Fhx2_nat50 = (1/9)*Fhx2_nat,
+         Fhx2_spill = (1/(N-1))*(Fhx2_nat - Fhx2),
+         Fhx2_nat50 = (1/N)*Fhx2_nat,
 #         Dx  =  (1/horiz)*100*((rmilitary_all-dplyr::lag(rmilitary_all,horiz))/dplyr::lag(rgdp_nat,horiz)),
 #         Dx_nat  =  (1/horiz)*100*((rmilitary_all_nat-dplyr::lag(rmilitary_all_nat,horiz))/dplyr::lag(rgdp_nat,horiz)),
 #         Dx_nat50  =  (1/50)*(1/horiz)*100*((rmilitary_all_nat-dplyr::lag(rmilitary_all_nat,horiz))/dplyr::lag(rgdp_nat,horiz)),
@@ -120,7 +126,7 @@ df <- df %>%
 #         Dx_nat2 = s^(3/horiz)*0.5*100*((military_all_nat-dplyr::lag(military_all_nat,horiz))/dplyr::lag(gdp_nat,horiz)))
 
 
-hall <- subset(df,year>1966 & year<2008)
+hall <- subset(df2,year>=1964 & year<=2002)
 
 
 #IRIS!  Here it is (this is the full regression)
@@ -156,5 +162,15 @@ ggsave("../output/scatterplot_dots.pdf", bmark_scatterplot, device = "pdf", heig
 agg_regression <- lm(data=subset(hall,fips==1),Fhy_nat ~ Fhx2_nat)
 summary(agg_regression)
 
+agg_scatterplot <- ggplot(subset(hall,fips==1), aes(x=Fhx2_nat, y= Fhy_nat,label=year)) +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_text(hjust=0,vjust=0) + theme_pubr() +
+  labs(x='Change in defense spending', y='Change in ouput') 
+  #geom_point(aes(color = Fhx2_nat)) +
+   #+scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "gray")
+agg_scatterplot
+
+
 
 ```
+
