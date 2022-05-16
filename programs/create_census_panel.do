@@ -210,8 +210,6 @@ foreach g in Lmilitary_all Lmilitary military_all payroll gdp inc mil2 {
 	replace `g'_nat = . if `g'_nat == 0
 }
 
-*interpolate the years 1960-1965 based on 1966
-
 gen aux_1 = military_all / military_all_nat
 rename bea bea_nat
 gen bea   = aux_1*bea_nat
@@ -224,22 +222,8 @@ gen aux_dg = mil2 / mil2_nat
 gen bea_dg = aux_dg*bea_nat
 gen bea_dg_nat = bea_nat
 
-*bysort fips:  egen aux_1_1966 = mean(aux_1) if year==1966 
-*bys fips:  egen aux_1_1966_tmp = mean(aux_1_1966)
-*replace aux_1 = aux_1_1966_tmp if year>=1960 & year<=1965
-*drop aux_1_1966 aux_1_1966_tmp 
-
-
-
-
-*bysort fips:  egen aux_2_1967 = mean(aux_2) if year==1967
-*bys fips:  egen aux_2_1967_tmp = mean(aux_2_1967)
-*replace aux_2 = aux_2_1967_tmp if year>=1960 & year<=1966
-*drop aux_2_1967 aux_2_1967_tmp 
-
-
-
-
+xtset fips year
+gen Laux_dg = L.aux_dg
 
 foreach var in Lmilitary Lmilitary_all military_all gdp inc bea bea_alt bea_dg payroll mil2 {			
 				gen r`var'     = `var' / cpi
@@ -287,4 +271,16 @@ forvalues h = 2/10{
 	}
 }
 
+**** Create instrument for the income variable using lagged scaling of bea_dg
+
+gen F1Drbea_dg_inst = 100*Laux_dg*(rbea_nat - L.rbea_nat)/rinc_nat
+gen F1Drbea_dg_leaveout_inst = 100*(1-Laux_dg)*(rbea_nat - L.rbea_nat)/rinc_nat
+forvalues h = 2/10{
+	local f = `h' - 1
+	gen F`h'Drbea_dg_inst = 100*Laux_dg*(F`f'.rbea_nat - L.rbea_nat)/rinc_nat + F`f'Drbea_dg_inst
+	gen F`h'Drbea_dg_leaveout_inst = 100*(1-Laux_dg)*(F`f'.rbea_nat - L.rbea_nat)/rinc_nat + F`f'Drbea_dg_leaveout_inst
+}	
+
+**** Save dataset
+	
 save ../data/cleaned_census_panel.dta, replace
