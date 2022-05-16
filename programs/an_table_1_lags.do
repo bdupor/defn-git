@@ -15,9 +15,11 @@ local do_print = "Y"
 * Thresholds for Standard Errors
 local Y0 = 5
 **** Choose Military spending panel 
-local gun bea_alt
+*local gun bea_alt
+local gun bea_dg
 **** Choose Military instrument
-local gun_instr Lmilitary
+*local gun_instr Lmilitary
+local gun_inst bea_dg
 **** Horizon of LHS and RHS
 local H = 4
 **** Horizon of Instrument
@@ -31,11 +33,15 @@ local Hz = 2
 use ../data/cleaned_census_panel.dta, clear
 
 **** Clean-up
-gen y  = F`H'Drgdp
 gen x  = F`H'Dr`gun'_nat
-gen Ly = L.F1Drgdp
 gen Lx = L.F1Dr`gun'
-gen Ly_nat = L.F1Drgdp_nat
+*gen y  = F`H'Drgdp
+*gen Ly = L.F1Drgdp
+*gen Ly_nat = L.F1Drgdp_nat
+gen y  = F`H'Drinc
+gen Ly = L.F1Drinc
+gen Ly_nat = L.F1Drinc_nat
+
 
 forvalues ii= 1(1)4 {
 	gen Ly`ii' = Ly
@@ -112,12 +118,16 @@ xtset fips year
 gen part = fips
 
 **** Clean-up
-gen y  = F`H'Drgdp
 gen x  = F`H'Dr`gun'_nat
-gen Ly = L.F1Drgdp
-gen Ly_nat = L.F1Drgdp_nat
 gen Lx = L.F1Dr`gun'
 gen Lx_nat = L.F1Dr`gun'_nat
+*gen y  = F`H'Drgdp
+*gen Ly = L.F1Drgdp
+*gen Ly_nat = L.F1Drgdp_nat
+gen y  = F`H'Drinc
+gen Ly = L.F1Drinc
+gen Ly_nat = L.F1Drinc_nat
+
 
 forvalues ii= 1(1)4 {
 	gen Ly`ii' = Ly

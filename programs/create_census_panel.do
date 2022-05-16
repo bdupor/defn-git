@@ -101,11 +101,13 @@ save ../data/ns_military.dta, replace
 *===============================================================================
 use ../data/dfns_cleaned_data2.dta,clear
 
-****************************Fix DoD Personnel Data******************************
+****************************Fix DoD Personnel Data and mil2*********************
 *Linearly interpolate missing observations
-foreach x in milpers civpers dodpers{
+foreach x in milpers civpers dodpers mil2 {
 	bys fips: ipolate `x' year, gen(`x'2)
 } 
+*use the linear interpolation of DG military spending for three years (each state)
+replace mil2 = mil22
 *Fix DC issue, see documentation
 replace milpers2 = milpers_fix if fips == 24 | fips == 51
 replace civpers2 = civpers_fix if fips == 24 | fips == 51
@@ -127,7 +129,9 @@ lab var civpers2 "DoD Civilian Personnel (fixed)"
 lab var dodpers2 "DoD Personnel (fixed)"
 ********************************************************************************
 
-keep totalpma3 totalpma totalpma2 fips year mil2 mil dodpers2
+replace inc = 1e6*inc
+
+keep totalpma3 totalpma totalpma2 fips year mil2 mil inc dodpers2
 
 rename dodpers2 dodpers
 
@@ -142,7 +146,7 @@ replace Lmilitary = -Lmilitary if Lmilitary < 0
 gen payroll = mil
 replace payroll = mil2 if missing(payroll)
 
-keep fips year Lmilitary payroll dodpers
+keep fips year Lmilitary payroll dodpers inc mil2
 
 save ../data/dg_military.dta, replace
 
@@ -192,7 +196,7 @@ drop fips
 rename fips2 fips
 
 *collapse (sum) Lmilitary Lmilitary_all military_all gdp  payroll dodpers (mean) bea cpi news (first) census region, by(fips year)
-collapse (sum) Lmilitary Lmilitary_all military_all gdp  payroll dodpers (mean) bea cpi (first) census region, by(fips year)
+collapse (sum) Lmilitary Lmilitary_all military_all gdp  payroll dodpers inc mil2 (mean) bea cpi (first) census region, by(fips year)
 
 
 replace Lmilitary_all = . if Lmilitary_all == 0
@@ -201,40 +205,50 @@ replace military_all = . if military_all == 0
 replace payroll =. if payroll == 0
 replace dodpers = . if dodpers == 0
 
-foreach g in Lmilitary_all Lmilitary military_all payroll gdp {
+foreach g in Lmilitary_all Lmilitary military_all payroll gdp inc mil2 {
 	egen `g'_nat = total(`g'), by(year)
 	replace `g'_nat = . if `g'_nat == 0
 }
 
 *interpolate the years 1960-1965 based on 1966
-gen aux_1 = military_all / military_all_nat
-bysort fips:  egen aux_1_1966 = mean(aux_1) if year==1966 
-bys fips:  egen aux_1_1966_tmp = mean(aux_1_1966)
-replace aux_1 = aux_1_1966_tmp if year>=1960 & year<=1965
-drop aux_1_1966 aux_1_1966_tmp 
 
+gen aux_1 = military_all / military_all_nat
 rename bea bea_nat
 gen bea   = aux_1*bea_nat
 
 gen aux_2 = Lmilitary_all / Lmilitary_all_nat
-bysort fips:  egen aux_2_1967 = mean(aux_2) if year==1967
-bys fips:  egen aux_2_1967_tmp = mean(aux_2_1967)
-replace aux_2 = aux_2_1967_tmp if year>=1960 & year<=1966
-drop aux_2_1967 aux_2_1967_tmp 
-
-
-
 gen bea_alt    = aux_2*bea_nat
 gen bea_alt_nat = bea_nat
 
-foreach var in Lmilitary Lmilitary_all military_all gdp bea bea_alt payroll{			
+gen aux_dg = mil2 / mil2_nat
+gen bea_dg = aux_dg*bea_nat
+gen bea_dg_nat = bea_nat
+
+*bysort fips:  egen aux_1_1966 = mean(aux_1) if year==1966 
+*bys fips:  egen aux_1_1966_tmp = mean(aux_1_1966)
+*replace aux_1 = aux_1_1966_tmp if year>=1960 & year<=1965
+*drop aux_1_1966 aux_1_1966_tmp 
+
+
+
+
+*bysort fips:  egen aux_2_1967 = mean(aux_2) if year==1967
+*bys fips:  egen aux_2_1967_tmp = mean(aux_2_1967)
+*replace aux_2 = aux_2_1967_tmp if year>=1960 & year<=1966
+*drop aux_2_1967 aux_2_1967_tmp 
+
+
+
+
+
+foreach var in Lmilitary Lmilitary_all military_all gdp inc bea bea_alt bea_dg payroll mil2 {			
 				gen r`var'     = `var' / cpi
 				gen r`var'_nat = `var'_nat / cpi
 				
 }
 				
-foreach g in Lmilitary_all Lmilitary military_all bea bea_alt payroll{
-	gen `g'_leaveout = `g'_nat - `g'
+foreach g in Lmilitary_all Lmilitary military_all bea bea_alt payroll bea_dg inc mil2 {
+	gen `g'_leaveout = `g'_nat - `g' 
 	gen r`g'_leaveout = `g'_leaveout/cpi
 	}
 
@@ -243,26 +257,33 @@ xtset fips year
 
 ***** One Year Changes
 xtset fips year
-foreach var in Lmilitary Lmilitary_all military_all gdp bea_alt bea payroll{
-	gen F1Dr`var' = 100*(r`var' - L.r`var')/L.rgdp_nat 
+foreach var in Lmilitary Lmilitary_all military_all  gdp inc bea_alt bea bea_dg payroll{
+*	gen F1Dr`var' = 100*(r`var' - L.r`var')/L.rgdp_nat 
+    gen F1Dr`var' = 100*(r`var' - L.r`var')/L.rinc_nat 
 }
-foreach var in Lmilitary Lmilitary_all military_all bea bea_alt payroll{
-	gen F1Dr`var'_leaveout = 100*(r`var'_leaveout - L.r`var'_leaveout)/L.rgdp_nat
+foreach var in Lmilitary Lmilitary_all military_all bea bea_alt bea_dg payroll{
+*	gen F1Dr`var'_leaveout = 100*(r`var'_leaveout - L.r`var'_leaveout)/L.rgdp_nat
+    gen F1Dr`var'_leaveout = 100*(r`var'_leaveout - L.r`var'_leaveout)/L.rinc_nat
+
 }
-foreach var in Lmilitary Lmilitary_all military_all bea gdp bea_alt payroll{
-	gen F1Dr`var'_nat = 100*(r`var'_nat- L.r`var'_nat)/L.rgdp_nat 
+foreach var in Lmilitary Lmilitary_all military_all bea gdp inc bea_alt bea_dg payroll{
+*	gen F1Dr`var'_nat = 100*(r`var'_nat- L.r`var'_nat)/L.rgdp_nat 
+    gen F1Dr`var'_nat = 100*(r`var'_nat- L.r`var'_nat)/L.rinc_nat
 }
 **** Other Horizons
 forvalues h = 2/10{
 	local f = `h' - 1
-	foreach var in Lmilitary Lmilitary_all military_all  gdp bea_alt bea payroll{
-		gen F`h'Dr`var' = 100*(F`f'.r`var' - L.r`var')/L.rgdp_nat + F`f'Dr`var'
+	foreach var in Lmilitary Lmilitary_all military_all gdp inc bea_alt bea bea_dg payroll{
+*		gen F`h'Dr`var' = 100*(F`f'.r`var' - L.r`var')/L.rgdp_nat + F`f'Dr`var'
+		gen F`h'Dr`var' = 100*(F`f'.r`var' - L.r`var')/L.rinc_nat + F`f'Dr`var'
 	}
-	foreach var in Lmilitary Lmilitary_all military_all bea bea_alt payroll{
-		gen F`h'Dr`var'_leaveout = 100*(F`f'.r`var'_leaveout - L.r`var'_leaveout)/L.rgdp_nat + F`f'Dr`var'_leaveout
+	foreach var in Lmilitary Lmilitary_all military_all bea bea_alt bea_dg  payroll{
+*		gen F`h'Dr`var'_leaveout = 100*(F`f'.r`var'_leaveout - L.r`var'_leaveout)/L.rgdp_nat + F`f'Dr`var'_leaveout
+        gen F`h'Dr`var'_leaveout = 100*(F`f'.r`var'_leaveout - L.r`var'_leaveout)/L.rinc_nat + F`f'Dr`var'_leaveout
 	}
-	foreach var in Lmilitary Lmilitary_all military_all gdp bea_alt bea payroll{ 
-		gen F`h'Dr`var'_nat = 100*(F`f'.r`var'_nat - L.r`var'_nat)/L.rgdp_nat + F`f'Dr`var'_nat
+	foreach var in Lmilitary Lmilitary_all military_all gdp inc bea_alt bea bea_dg payroll{ 
+*		gen F`h'Dr`var'_nat = 100*(F`f'.r`var'_nat - L.r`var'_nat)/L.rgdp_nat + F`f'Dr`var'_nat
+        gen F`h'Dr`var'_nat = 100*(F`f'.r`var'_nat - L.r`var'_nat)/L.rinc_nat + F`f'Dr`var'_nat
 	}
 }
 
