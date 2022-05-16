@@ -77,12 +77,13 @@ X <- model.matrix(~F4Drbea_dg_nat,data=hallAgg)
 Z <- model.matrix(~F4Drbea_dg_nat,data=hallAgg)
 bm_agg <- gmm2S(Ti,1,y,X,Z, yy, k_t,tol, guess, maxiter,second)
 
-
+#Iris:  here is y
 y <- matrix(hall$F4Drinc,Ti*N,1)
 X <- model.matrix(~factor(fips) + F4Drbea_dg_nat_sc,data=hall)
 Z <- model.matrix(~F4Drbea_dg_nat_sc,data=hall)
 bm_aa <- gmm2S(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
 
+#Iris:  Hereare are the local and spillover (ie. leaveout) variables in X
 X <- model.matrix(~factor(fips) + F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=hall)
 Z <- model.matrix(~ F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=hall)
 bm_lsd <- gmm2S(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
@@ -127,6 +128,24 @@ table1[c("lsd","lsd (se)","iv lsd","iv lsd (se)"),"aggregate"] <-
 
 
 ```
+
+```{r}
+#gis <- read_dta("../data/cleaned_gis_panel.dta")
+#N <- length(unique(gis$fips))
+#gis <- gis[order(gis$fips,gis$year),] %>%
+#   subset(year>=1961 & year<=2005) %>%
+#   mutate(F4Drbea_dg_leaveout_sc = (1/(N-1))*F4Drbea_dg_leaveout)
+#Ti <- length(gis$F4Drinc)/N
+
+#y <- matrix(gis$F4Drinc,Ti*N,1)
+#X <- model.matrix(~factor(fips) + F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=gis)
+#Z <- model.matrix(~F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=gis)
+#gis_lsd <- gmm2S(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
+
+
+
+```
+
 
 
 ```{r}
