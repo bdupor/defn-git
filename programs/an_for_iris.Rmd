@@ -318,16 +318,26 @@ ggsave("../output/bmark_scatterplot_91_02.pdf", bmark_scatterplot_facet, device 
 hall_nofips <- hall %>%
    dplyr::rename(fips2 = fips)
 
-bmark_scatterplot_facet <- ggplot() +
-  geom_text(data = hall_nofips, size = 3, color = "gray", aes(x=Fhx2_spill, y= resid, label = paste0(substr(year, 3 , 4)))) +
+
+library(ggpmisc)
+
+hall$x <- hall$resid
+hall$y <- hall$Fhx2_spill
+
+myformula <-  y ~ x
+
+bmark_scatterplot_facet <- ggplot(data = hall, aes(x=x, y= y)) +
   geom_text(data = hall, size = 3, aes(x=Fhx2_spill, y= resid, color = Fhx2_nat, label = paste0(substr(year, 3 , 4)))) +
-  geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+  geom_smooth(data = hall, method = "lm", se = FALSE, color = "black", aes(x=Fhx2_spill, y= resid)) + theme_pubr() +
   labs(x='Spillover', y='Residuals') +
-  scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "black") + 
+  scale_colour_gradient2(low = "red", high = "green", mid = "black") + 
   scale_shape_manual("Division", values = c(0,1,2,3,4,5,6,7,8)) +
-  facet_wrap(~fips)
+  facet_wrap(~fips) +
+     stat_poly_eq(formula = myformula, 
+                aes(label = paste(..eq.label.., sep = "~~~")), 
+                parse = TRUE)
 bmark_scatterplot_facet
-ggsave("../output/bmark_scatterplot_divisionfacet.pdf", bmark_scatterplot_facet, device = "pdf", height = 5, width = 9)
+ggsave("../output/bmark_scatterplot_divisionfacet.pdf", bmark_scatterplot_facet, device = "pdf", height = 6, width = 9)
 
 
 
