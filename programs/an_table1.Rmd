@@ -54,12 +54,14 @@ maxiter <- 1000   #maximum iteration of iterated GMM procedure
 k_t <- 0         #I don't remember what this does
 yy <- 4        #Bartlett window goes from -yy to yy
 second <- 0      #Second moment independence if value = 1
+first_yr <- 1961
+end_yr <- 2005
 
-df <- read_dta("../data/cleaned_census_panel.dta")
+df <- read_dta("../data/cleaned_gis2_panel.dta")
 df <- df[order(df$fips,df$year),]
 
 N <- length(unique(df$fips))
-hall <- subset(df,year>=1961 & year<=2005)
+hall <- subset(df,year>=first_yr & year<=end_yr)
 hall$F4Drbea_dg_nat_sc <- (1/N)*hall$F4Drbea_dg_nat
 hall$F4Drbea_dg_leaveout_sc <- (1/(N-1))*hall$F4Drbea_dg_leaveout
 
@@ -130,17 +132,23 @@ table1[c("lsd","lsd (se)","iv lsd","iv lsd (se)"),"aggregate"] <-
 ```
 
 ```{r}
-#gis <- read_dta("../data/cleaned_gis_panel.dta")
-#N <- length(unique(gis$fips))
-#gis <- gis[order(gis$fips,gis$year),] %>%
-#   subset(year>=1961 & year<=2005) %>%
-#   mutate(F4Drbea_dg_leaveout_sc = (1/(N-1))*F4Drbea_dg_leaveout)
-#Ti <- length(gis$F4Drinc)/N
+gis <- read_dta("../data/cleaned_gis2_panel.dta")
+N <- length(unique(gis$fips))
+gis <- gis[order(gis$fips,gis$year),] %>%
+   subset(year>=first_yr & year<=end_yr) %>%
+   mutate(F4Drbea_dg_leaveout_sc = (1/(N-1))*F4Drbea_dg_leaveout,
+          F4Drbea_dg_nat_sc = (1/N)*F4Drbea_dg_nat)
+Ti <- length(gis$F4Drinc)/N
 
-#y <- matrix(gis$F4Drinc,Ti*N,1)
-#X <- model.matrix(~factor(fips) + F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=gis)
-#Z <- model.matrix(~F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=gis)
-#gis_lsd <- gmm2S(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
+y <- matrix(gis$F4Drinc,Ti*N,1)
+X <- model.matrix(~factor(fips) + F4Drbea_dg_nat_sc,data=gis)
+Z <- model.matrix(~F4Drbea_dg_nat_sc,data=gis)
+gis_aa <- gmm2S(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
+
+
+X <- model.matrix(~factor(fips) + F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=gis)
+Z <- model.matrix(~F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=gis)
+gis_lsd <- gmm2S(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
 
 
 

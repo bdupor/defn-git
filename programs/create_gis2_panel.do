@@ -5,18 +5,17 @@ est clear
 matrix drop _all
 set matsize 11000
 
-
 local do_pre = "Y"
 
 if "`do_pre'" == "Y"{
 *===============================================================================	
 * Create nine roughly equally sized regions using Rong's partition
 *===============================================================================
-use ../data/GIS_partition_ver1, clear
-rename state_abbr state
-save ../data/GIS_partition_ver1_tmp.dta, replace
 
-	
+use ../data/GIS_partition_ver1, clear
+postal_to_FIPS state_abbr
+rename statefips fips
+save ../data/GIS_partition_ver1_tmp.dta, replace
 *===============================================================================
 * BEA State GDP 
 *===============================================================================
@@ -57,7 +56,7 @@ destring fips, gen(fips2)
 drop fips
 rename fips2 fips
 
-drop if fip == 0 | fips  > 56 
+drop if fip == 0 | fips  > 56
 
 drop Geo*
 
@@ -177,8 +176,6 @@ merge m:1 year using ../data/cpi.dta
 drop if _merge == 2
 drop _merge
 
-merge m:1 state using ../data/GIS_partition_ver1_tmp
-drop _merge
 
 gen military_all = military + mil_inc
 
@@ -199,7 +196,9 @@ replace payroll = payroll_alt if fips == 50
 gen Lmilitary_all = Lmilitary + payroll
 
 **** Identify Psuedo-states 
-*fips_to_census fips
+fips_to_census fips
+merge m:1 fips using ../data/GIS_partition_ver1_tmp
+
 
 egen fips2 = group(cendiv_abbr_GP)
 
@@ -207,8 +206,9 @@ drop fips
 rename fips2 fips
 drop if fips==.
 
-*collapse (sum) Lmilitary Lmilitary_all military_all gdp  payroll dodpers (mean) bea cpi news (first) census region, by(fips year)
-collapse (sum) Lmilitary Lmilitary_all military_all gdp  payroll dodpers inc mil2 (mean) bea cpi, by(fips year)
+*collapse (sum) Lmilitary Lmilitary_all military_all gdp  payroll dodpers (mean) bea cpi (first) census region, by(fips year)
+*collapse (sum) Lmilitary Lmilitary_all military_all gdp  payroll dodpers inc mil2 (mean) bea cpi, by(fips year)
+collapse (sum) Lmilitary Lmilitary_all military_all gdp  payroll dodpers inc mil2 (mean) bea cpi (first) census region, by(fips year)
 
 
 replace Lmilitary_all = . if Lmilitary_all == 0
@@ -291,8 +291,10 @@ forvalues h = 2/10{
 	local f = `h' - 1
 	gen F`h'Drbea_dg_inst = 100*Laux_dg*(F`f'.rbea_nat - L.rbea_nat)/rinc_nat + F`f'Drbea_dg_inst
 	gen F`h'Drbea_dg_leaveout_inst = 100*(1-Laux_dg)*(F`f'.rbea_nat - L.rbea_nat)/rinc_nat + F`f'Drbea_dg_leaveout_inst
-}	
+}
+	
+bys fips:  gen inc_shr = rinc/rinc_nat
+bys fips:  gen Linc_shr = L.inc_shr
 
 **** Save dataset
-
-save ../data/cleaned_gis_panel.dta, replace
+save ../data/cleaned_gis2_panel.dta, replace
