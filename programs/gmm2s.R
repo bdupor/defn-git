@@ -51,10 +51,11 @@ gmm2S <- function(Ti, N, y, X, Z, yy, k_t,tol, guess = -99, maxiter, second) {  
   }
   
   W <- base::solve(Omega_hat)
+  #W <- diag(N*K)*W
   phi_hat <- base::solve(t(aux_xz2)%*%W%*%aux_xz2) %*% t(aux_xz2)%*%W%*%aux_yz2
   G <- (1/Ti)*aux_xz2
   temp <- base::solve(t(G)%*%W%*%G)
-  #   var <- (1/Ti)*temp%*%t(G)%*%W%*%Omega_hat%*%t(W)%*%G%*%temp
+  #var <- (1/Ti)*temp%*%t(G)%*%W%*%Omega_hat%*%t(W)%*%G%*%temp
   var <- (1/Ti)*base::solve((1/Ti)*t(aux_xz2)%*%W%*%aux_xz2*(1/Ti))
   
 
@@ -68,7 +69,7 @@ gmm2S <- function(Ti, N, y, X, Z, yy, k_t,tol, guess = -99, maxiter, second) {  
   p = 2*pt(-abs(t),1000000)
   
   return_list <- list("phi_hat"=phi_hat,"phi_1st"=phi_1st,"Var"=var,"J"=J,"pval"=pval,
-                      "nobs"=(Ti*N),"p"=p,"Omega_hat"=Omega_hat)
+                      "nobs"=(Ti*N),"p"=p,"Omega_hat"=Omega_hat,"W"=W)
   return(return_list)
   
 }

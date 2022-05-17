@@ -191,6 +191,7 @@ gen Lmilitary_all = Lmilitary + payroll
 fips_to_census fips
 
 egen fips2 = group(census)
+*egen fips2 = group(region)
 
 drop fips 
 rename fips2 fips
