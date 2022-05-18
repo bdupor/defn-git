@@ -43,6 +43,8 @@ library(texreg)
 library(plyr)
 library(AER)
 library(ggpubr)
+library(ggpmisc)
+
 
 source("../../ram_rcode/PartialGMM2S.R")
 source("../../ram_rcode/mapToMat.R")
@@ -162,12 +164,56 @@ gis_lsd <- gmm2S(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
 #summary(full_regression)
 
 hall$y <- matrix(hall$F4Drinc,Ti*N,1)
-hall$x <- model.matrix(~factor(fips) + F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=hall)[,10]
+hall$x <- hall$F4Drbea_dg
 
 
 partial_regression <- lm(data=hall,y ~ as.factor(fips) + x  - 1, na.action = "na.exclude")
 
-hall$resid <- resid(partial_regression)
+hall$y <- resid(partial_regression)
+hall$x <- hall$F4Drbea_dg_leaveout_sc
+myformula <-  y ~ x
+
+bmark_scatterplot_facet <- ggplot(data = hall, aes(x=x, y= y)) +
+  geom_text(data = hall, size = 3, aes(x=x, y= y, label = paste0(substr(year, 3 , 4)))) +
+  geom_smooth(data = hall, method = "lm", se = FALSE, color = "black", aes(x=x, y= y)) + theme_pubr() +
+  labs(x='Spillover', y='Residuals') +
+  #scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "darkgrey") + 
+  facet_wrap(~fips) +
+     stat_poly_eq(formula = myformula, 
+                aes(label = paste(..eq.label.., sep = "~~~")), 
+                parse = TRUE)
+bmark_scatterplot_facet
+ggsave("../output/bmark_scatterplot_divisionfacet.pdf", bmark_scatterplot_facet, device = "pdf", height = 6, width = 9)
+
+
+
+
+# Version with local on x axis
+
+hall$y <- matrix(hall$F4Drinc,Ti*N,1)
+hall$x <- hall$F4Drbea_dg
+
+
+partial_regression <- lm(data=hall,y ~ as.factor(fips) + F4Drbea_dg_leaveout_sc  - 1, na.action = "na.exclude")
+
+hall$y <- resid(partial_regression)
+hall$x <- hall$x
+myformula <-  y ~ x
+
+bmark_scatterplot_facet <- ggplot(data = hall, aes(x=x, y= y)) +
+  geom_text(data = hall, size = 3, aes(x=x, y= y, label = paste0(substr(year, 3 , 4)))) +
+  geom_smooth(data = hall, method = "lm", se = FALSE, color = "black", aes(x=x, y= y)) + theme_pubr() +
+  labs(x='Local', y='Residuals') +
+  #scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "darkgrey") + 
+  facet_wrap(~census) +
+     stat_poly_eq(formula = myformula, 
+                aes(label = paste(..eq.label.., sep = "~~~")), 
+                parse = TRUE)
+bmark_scatterplot_facet
+ggsave("../output/bmark_scatterplot_divisionfacet.pdf", bmark_scatterplot_facet, device = "pdf", height = 6, width = 9)
+
+
+
 # 
 # # plot with dots
 # 
@@ -311,26 +357,6 @@ hall$resid <- resid(partial_regression)
 # bmark_scatterplot_facet
 # ggsave("../output/bmark_scatterplot_divisionfacet.pdf", bmark_scatterplot_facet, device = "pdf", height = 5, width = 9)
 # 
-
-
-library(ggpmisc)
-
-hall$y <- hall$resid
-hall$x <- hall$F4Drbea_dg_leaveout_sc
-myformula <-  y ~ x
-
-bmark_scatterplot_facet <- ggplot(data = hall, aes(x=x, y= y)) +
-  geom_text(data = hall, size = 3, aes(x=x, y= y, label = paste0(substr(year, 3 , 4)))) +
-  geom_smooth(data = hall, method = "lm", se = FALSE, color = "black", aes(x=x, y= y)) + theme_pubr() +
-  labs(x='Spillover', y='Residuals') +
-  #scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "darkgrey") + 
-  scale_shape_manual("Division", values = c(0,1,2,3,4,5,6,7,8)) +
-  facet_wrap(~fips) +
-     stat_poly_eq(formula = myformula, 
-                aes(label = paste(..eq.label.., sep = "~~~")), 
-                parse = TRUE)
-bmark_scatterplot_facet
-ggsave("../output/bmark_scatterplot_divisionfacet.pdf", bmark_scatterplot_facet, device = "pdf", height = 6, width = 9)
 
 
 
