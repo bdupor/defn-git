@@ -27,7 +27,7 @@ local Hz = 2
 local second_mom = 1
 ***** Maximum iterations
 local max_iter = 200
-local first_yr = 1960
+local first_yr = 1961
 local last_yr = 2006
 
 *===============================================================================
@@ -35,16 +35,20 @@ local last_yr = 2006
 *===============================================================================
 
 **** Load Data
-use ../data/cleaned_gis2_panel.dta, clear
-keep if year>=`first_yr' & year<=`last_yr'
+use ../data/cleaned_gis_panel.dta, clear
 
-bys fips:  gen shr = Linc_shr[1]
+
+
 **** Clean-up
 gen y  = F`H'Drinc
-gen x  = shr*F`H'Dr`gun'_nat
 gen Ly = L.F1Drinc
-gen Lx = shr*(L.F1Dr`gun'_nat)
+gen Lx = (L.F1Dr`gun'_nat)
 gen Ly_nat = L.F1Drinc_nat
+
+keep if year>=`first_yr' & year<=`last_yr'
+bys fips:  gen shr = Linc_shr[1]
+gen x  = shr*F`H'Dr`gun'_nat
+replace Lx = shr*Lx
 
 
 forvalues ii= 1(1)4 {
@@ -116,25 +120,31 @@ mat J_stat = nullmat(J_stat), temp_J[1,1]
 * Aggregate, 9-region
 *===============================================================================
 **** Load Data
-use ../data/cleaned_gis2_panel.dta, clear
-keep if year>=`first_yr' & year<=`last_yr'
+use ../data/cleaned_gis_panel.dta, clear
 
-bys fips:  gen shr = Linc_shr[1]
+
+
 
 xtset fips year
 
 **** Identify Partition
 gen part = fips
 
-**** Clean-up
 gen y  = F`H'Drinc
-gen x  = shr*(F`H'Dr`gun'_nat)
 gen Ly = L.F1Drinc
+gen Lx = (L.F1Dr`gun'_nat)
 gen Ly_nat = L.F1Drinc_nat
-gen Lx = shr*(L.F1Dr`gun')
 gen Lx_nat = L.F1Dr`gun'_nat
 
-keep if year>=1960 & year<=2006
+keep if year>=`first_yr' & year<=`last_yr'
+bys fips:  gen shr = Linc_shr[1]
+gen x  = shr*F`H'Dr`gun'_nat
+replace Lx = shr*Lx
+**** Clean-up
+
+
+
+
 
 forvalues ii= 1(1)4 {
 	gen Ly`ii' = Ly
@@ -150,9 +160,6 @@ replace Lx1=0 if region~="Midwest"
 replace Lx2=0 if region~="Northeast"
 replace Lx3=0 if region~="South"
 replace Lx4=0 if region~="West"
-
-*replace x = x/`N'
-*replace x = (rinc/rinc_nat)*x
 
 keep if ~missing(x) & ~missing(y) & ~missing(F`H'Dr`gun') & ~missing(Ly)  & ~missing(Lx)
 
@@ -173,13 +180,9 @@ local T = r(N)
 	
 xtset fips year
 
-
-
 mkmat y , mat(y)
-mkmat x, mat(x)
-mkmat x, mat(x)
-*mkmat x  Ly1 Ly2 Ly3 Ly4 Lx1 Lx2 Lx3 Lx4, mat(x)
-*mkmat x  Ly Lx, mat(z)
+mkmat x  Ly1 Ly2 Ly3 Ly4 Lx1 Lx2 Lx3 Lx4, mat(x)
+mkmat x  Ly Lx, mat(z)
 mkmat part if year == 2000, mat(part)
 
 qui tab part
@@ -200,10 +203,7 @@ mat iterations = nullmat(iterations), temp_iter[1,1]
 * Decomposition
 *===============================================================================
 **** Load Data
-use ../data/cleaned_gis2_panel.dta, clear
-keep if year>=`first_yr' & year<=`last_yr'
-
-bys fips:  gen shr = Linc_shr[1]
+use ../data/cleaned_gis_panel.dta, clear
 
 xtset fips year
 
@@ -213,15 +213,15 @@ gen part = fips
 **** Clean up
 gen y = F`H'Drinc
 gen x = F`H'Dr`gun'
-gen xs = shr*(F`H'Dr`gun'_nat) 
 gen z_nat = F`H'Dr`gun'_nat
 gen Ly = L.F1Drinc
 gen Ly_nat = L.F1Drinc_nat
 gen Lx = L.F1Dr`gun'
 gen Lx_nat = L.F1Dr`gun'_nat
 
-*replace xs = xs/(`N'-1)
-*replace xs = (rinc/rinc_nat)*F`H'Dr`gun'_nat
+keep if year>=`first_yr' & year<=`last_yr'
+bys fips:  gen shr = Linc_shr[1]
+gen xs = shr*(F`H'Dr`gun'_nat) 
 
 forvalues ii= 1(1)4 {
 	gen Ly`ii' = Ly
@@ -239,6 +239,7 @@ replace Lx3=0 if region~="South"
 replace Lx4=0 if region~="West"
 
 keep if ~missing(y) & ~missing(x) & ~missing(xs) & ~missing(z_nat) & ~missing(Ly) & ~missing(Lx)
+
 
 foreach var in y x xs z_nat  Ly Lx  Ly1 Ly2 Ly3 Ly4 Lx1 Lx2 Lx3 Lx4 Ly_nat Lx_nat {
 	egen aux = mean(`var'), by(fips)
@@ -258,10 +259,10 @@ local T = r(N)
 xtset fips year
 
 mkmat y , mat(y)
-mkmat x xs, mat(x)
-mkmat x xs, mat(z)
-*mkmat x xs Ly1 Ly2 Ly3 Ly4 Lx1 Lx2 Lx3 Lx4, mat(x)
-*mkmat x xs Ly Lx, mat(z)
+*mkmat x xs, mat(x)
+*mkmat x xs, mat(z)
+mkmat x xs Ly1 Ly2 Ly3 Ly4 Lx1 Lx2 Lx3 Lx4, mat(x)
+mkmat x xs Ly Lx, mat(z)
 mkmat part if year == 2000, mat(part)
 
 qui tab part
@@ -286,10 +287,7 @@ mat iterations = nullmat(iterations), temp_iter[1,1]
 * Decomposition (IV)
 *===============================================================================
 **** Load Data
-use ../data/cleaned_gis2_panel.dta, clear
-keep if year>=`first_yr' & year<=`last_yr'
-
-bys fips:  gen shr = Linc_shr[1]
+use ../data/cleaned_gis_panel.dta, clear
 
 xtset fips year
 
@@ -297,16 +295,20 @@ xtset fips year
 gen part = fips
 
 **** Clean up
-gen z     = F`H'Dr`gun'_inst
-gen z_nat = shr*(F`H'Dr`gun'_nat)
 
 gen y = F`H'Drinc
 gen x = F`H'Dr`gun'
-gen xs = shr*(F`H'Dr`gun'_nat) 
+gen z     = F`H'Dr`gun'_inst
+
 gen Ly = L.F1Drinc
 gen Ly_nat = L.F1Drinc_nat
 gen Lx = L.F1Dr`gun'
 gen Lx_nat = L.F1Dr`gun'_nat
+
+keep if year>=`first_yr' & year<=`last_yr'
+bys fips:  gen shr = Linc_shr[1]
+gen xs = shr*(F`H'Dr`gun'_nat) 
+gen z_nat = F`H'Dr`gun'_nat
 
 forvalues ii= 1(1)4 {
 	gen Ly`ii' = Ly
@@ -326,6 +328,7 @@ replace Lx4=0 if region~="West"
 keep if ~missing(y) & ~missing(x) & ~missing(xs) & ~missing(z) & ~missing(z_nat) & ~missing(Ly)
 
 foreach var in z z_nat y x xs  Ly Lx  Ly1 Ly2 Ly3 Ly4 Lx1 Lx2 Lx3 Lx4 Ly_nat Lx_nat  {
+*foreach var in z z_nat y x xs  Ly Lx  Ly1 Ly2 Ly3 Ly4 Ly_nat   {
 	egen aux = mean(`var'), by(fips)
 	replace `var' = `var' - aux
 	drop aux
@@ -370,13 +373,13 @@ mat iterations = nullmat(iterations), temp_iter[1,1]
 *===============================================================================
 * Table
 *===============================================================================
-matrix colnames pvalue = c2 c3 c4 c5 
-matrix colnames own    = c3 c4 c5 
-matrix colnames own_se = c3 c4 c5 
-matrix colnames spill    =  c3 c4 c5 
-matrix colnames spill_se =  c3 c4 c5 
-matrix colnames agg    = c1 c2 c3 c4 c5 
-matrix colnames agg_se = c1 c2 c3 c4 c5 
+matrix colnames pvalue = c2 c3 c4 
+matrix colnames own    = c3 c4  
+matrix colnames own_se = c3 c4  
+matrix colnames spill    =  c3 c4  
+matrix colnames spill_se =  c3 c4  
+matrix colnames agg    = c1 c2 c3 c4  
+matrix colnames agg_se = c1 c2 c3 c4  
 
 foreach m in own spill agg {
 	matrix coef = `m'
@@ -396,8 +399,7 @@ esttab own spill agg,
 	cells((b(fmt(%9.3f) star label(" "))  pvalue(pattern(0 0 1 ) 
 	label("P-value"))) se(par fmt(%9.7f) label(" "))) 
 	noobs nonumber varlabels(c1 "Aggregate, 1 Nationwide Region" c2 "Aggregate" 
-	c3 "Decomposition (IV \#1)" c4 "Decomposition (IV \#2)" 
-	c5 "Decomposition (IV \#3)") 
+	c3 "Decomposition" c4 "Decomposition (IV)") 
 	mlabels("" "" "") collabels(" " " " " " )
 	posthead("Local & Spillover & Aggregate  & P-value \\ \hline");
 #delimit cr
@@ -417,8 +419,7 @@ esttab own spill agg using ../output/table_1.tex,
 	cells((b(fmt(%9.2f) star label(" "))  pvalue(pattern(0 0 1 ) 
 	label("P-value"))) se(par fmt(%9.2f) label(" "))) 
 	noobs  varlabels(c1 "Aggregate, 1 Nationwide Region" c2 "Aggregate, 9 Divisions" 
-	c3 "Decomposition (IV \#1)" c4 "Decomposition (IV \#2)" 
-	c5 "Decomposition (IV \#3)") 
+	c3 "Decomposition" c4 "Decomposition (IV)") 
 	mlabels(,none) collabels(,none) nonumber star(* 0.10 ** 0.05 *** 0.01)
 	posthead("  & (1) & (2) & (3)  & (4) \\ & Local & Spillover & Aggregate  & Overid. Test \\ \hline");
 #delimit cr
