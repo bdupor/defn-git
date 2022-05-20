@@ -8,6 +8,14 @@ set matsize 11000
 local do_pre = "Y"
 
 if "`do_pre'" == "Y"{
+*===============================================================================	
+* Create nine roughly equally sized regions using Rong's partition
+*===============================================================================
+
+use ../data/GIS_partition_ver1, clear
+postal_to_FIPS state_abbr
+rename statefips fips
+save ../data/GIS_partition_ver1_tmp.dta, replace
 *===============================================================================
 * BEA State GDP 
 *===============================================================================
@@ -189,14 +197,17 @@ gen Lmilitary_all = Lmilitary + payroll
 
 **** Identify Psuedo-states 
 fips_to_census fips
+merge m:1 fips using ../data/GIS_partition_ver1_tmp
 
-egen fips2 = group(census)
-*egen fips2 = group(region)
+
+egen fips2 = group(cendiv_abbr_GP)
 
 drop fips 
 rename fips2 fips
+drop if fips==.
 
-*collapse (sum) Lmilitary Lmilitary_all military_all gdp  payroll dodpers (mean) bea cpi news (first) census region, by(fips year)
+*collapse (sum) Lmilitary Lmilitary_all military_all gdp  payroll dodpers (mean) bea cpi (first) census region, by(fips year)
+*collapse (sum) Lmilitary Lmilitary_all military_all gdp  payroll dodpers inc mil2 (mean) bea cpi, by(fips year)
 collapse (sum) Lmilitary Lmilitary_all military_all gdp  payroll dodpers inc mil2 (mean) bea cpi (first) census region, by(fips year)
 
 
@@ -243,45 +254,46 @@ xtset fips year
 ***** One Year Changes
 xtset fips year
 foreach var in Lmilitary Lmilitary_all military_all  gdp inc bea_alt bea bea_dg payroll{
-*	gen F1Dr`var' = 100*(r`var' - L.r`var')/L.rgdp_nat 
-    gen F1Dr`var' = 100*(r`var' - L.r`var')/L.rinc_nat 
+	gen F1Dr`var' = 100*(r`var' - L.r`var')/L.rgdp_nat 
+*    gen F1Dr`var' = 100*(r`var' - L.r`var')/L.rinc_nat 
 }
 foreach var in Lmilitary Lmilitary_all military_all bea bea_alt bea_dg payroll{
-*	gen F1Dr`var'_leaveout = 100*(r`var'_leaveout - L.r`var'_leaveout)/L.rgdp_nat
-    gen F1Dr`var'_leaveout = 100*(r`var'_leaveout - L.r`var'_leaveout)/L.rinc_nat
+	gen F1Dr`var'_leaveout = 100*(r`var'_leaveout - L.r`var'_leaveout)/L.rgdp_nat
+*    gen F1Dr`var'_leaveout = 100*(r`var'_leaveout - L.r`var'_leaveout)/L.rinc_nat
 
 }
 foreach var in Lmilitary Lmilitary_all military_all bea gdp inc bea_alt bea_dg payroll{
-*	gen F1Dr`var'_nat = 100*(r`var'_nat- L.r`var'_nat)/L.rgdp_nat 
-    gen F1Dr`var'_nat = 100*(r`var'_nat- L.r`var'_nat)/L.rinc_nat
+	gen F1Dr`var'_nat = 100*(r`var'_nat- L.r`var'_nat)/L.rgdp_nat 
+*    gen F1Dr`var'_nat = 100*(r`var'_nat- L.r`var'_nat)/L.rinc_nat
 }
 **** Other Horizons
 forvalues h = 2/10{
 	local f = `h' - 1
 	foreach var in Lmilitary Lmilitary_all military_all gdp inc bea_alt bea bea_dg payroll{
-*		gen F`h'Dr`var' = 100*(F`f'.r`var' - L.r`var')/L.rgdp_nat + F`f'Dr`var'
-		gen F`h'Dr`var' = 100*(F`f'.r`var' - L.r`var')/L.rinc_nat + F`f'Dr`var'
+		gen F`h'Dr`var' = 100*(F`f'.r`var' - L.r`var')/L.rgdp_nat + F`f'Dr`var'
+*		gen F`h'Dr`var' = 100*(F`f'.r`var' - L.r`var')/L.rinc_nat + F`f'Dr`var'
 	}
 	foreach var in Lmilitary Lmilitary_all military_all bea bea_alt bea_dg  payroll{
-*		gen F`h'Dr`var'_leaveout = 100*(F`f'.r`var'_leaveout - L.r`var'_leaveout)/L.rgdp_nat + F`f'Dr`var'_leaveout
-        gen F`h'Dr`var'_leaveout = 100*(F`f'.r`var'_leaveout - L.r`var'_leaveout)/L.rinc_nat + F`f'Dr`var'_leaveout
+		gen F`h'Dr`var'_leaveout = 100*(F`f'.r`var'_leaveout - L.r`var'_leaveout)/L.rgdp_nat + F`f'Dr`var'_leaveout
+*        gen F`h'Dr`var'_leaveout = 100*(F`f'.r`var'_leaveout - L.r`var'_leaveout)/L.rinc_nat + F`f'Dr`var'_leaveout
 	}
 	foreach var in Lmilitary Lmilitary_all military_all gdp inc bea_alt bea bea_dg payroll{ 
-*		gen F`h'Dr`var'_nat = 100*(F`f'.r`var'_nat - L.r`var'_nat)/L.rgdp_nat + F`f'Dr`var'_nat
-        gen F`h'Dr`var'_nat = 100*(F`f'.r`var'_nat - L.r`var'_nat)/L.rinc_nat + F`f'Dr`var'_nat
+		gen F`h'Dr`var'_nat = 100*(F`f'.r`var'_nat - L.r`var'_nat)/L.rgdp_nat + F`f'Dr`var'_nat
+*        gen F`h'Dr`var'_nat = 100*(F`f'.r`var'_nat - L.r`var'_nat)/L.rinc_nat + F`f'Dr`var'_nat
 	}
 }
 
-**** Create instrument for the income variable using lagged scaling of bea_dg
 
-gen F1Drbea_dg_inst = 100*Laux_dg*(rbea_nat - L.rbea_nat)/rinc_nat
-gen F1Drbea_dg_leaveout_inst = 100*(1-Laux_dg)*(rbea_nat - L.rbea_nat)/rinc_nat
+**** Create instrument for the income variable using lagged scaling of bea_alt
+
+gen F1Drbea_alt_inst = 100*aux_2*(rbea_nat - L.rbea_nat)/rgdp_nat
+gen F1Drbea_alt_leaveout_inst = 100*(1-aux_2)*(rbea_nat - L.rbea_nat)/rgdp_nat
 forvalues h = 2/10{
 	local f = `h' - 1
-	gen F`h'Drbea_dg_inst = 100*Laux_dg*(F`f'.rbea_nat - L.rbea_nat)/rinc_nat + F`f'Drbea_dg_inst
-	gen F`h'Drbea_dg_leaveout_inst = 100*(1-Laux_dg)*(F`f'.rbea_nat - L.rbea_nat)/rinc_nat + F`f'Drbea_dg_leaveout_inst
-}	
+	gen F`h'Drbea_alt_inst = 100*aux_2*(F`f'.rbea_nat - L.rbea_nat)/rgdp_nat + F`f'Drbea_alt_inst
+	gen F`h'Drbea_alt_leaveout_inst = 100*(1-aux_2)*(F`f'.rbea_nat - L.rbea_nat)/rgdp_nat + F`f'Drbea_alt_leaveout_inst
+}
+	
 
 **** Save dataset
-	
-save ../data/cleaned_census_panel.dta, replace
+save ../data/cleaned_gis_panel_gdp.dta, replace

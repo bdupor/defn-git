@@ -298,5 +298,5 @@ forvalues h = 2/10{
 	}
 }
 
-save ../data/cleaned_pseudo_panel.dta, replace
+save ../data/cleaned_pseudo_panel_gdp.dta, replace
 

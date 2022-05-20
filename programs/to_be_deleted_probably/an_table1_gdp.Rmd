@@ -1,0 +1,385 @@
+---
+title: "an_table1"
+author: "Bill Dupor"
+date: "5/16/2022"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r,echo = FALSE,message = FALSE,warning = FALSE,cache=TRUE,results="hide",include=FALSE}
+#knitr::opts_chunk$set(echo = FALSE)
+#knitr::opts_chunk$set(message = FALSE)
+#knitr::opts_chunk$set(warning = FALSE)
+## This program does estimation for DEFN
+
+# The program is written by Iris Arbogast (irisarbogast@gmail.com) 
+# Federal Reserve Bank of St. Louis, April 2021
+# The program is based on Stata code from Mahdi Ebsim
+# The code uses state-level GDP data from the BEA and Defense Wages/Contracts 
+# from Dupor and Guerrero (2017)
+ 
+
+# ------------------------- Install Libraries ----------------------------------
+library(haven) #This package allows R to read in .dta files
+library(tidyverse) #This package reads data wrangling packages, string parsing, graphing
+library(matrixcalc)
+library(pracma)
+library(zoo)
+library(lubridate)
+library(doBy)
+library(plm)
+library(dplyr)
+library(gtsummary)
+library(stargazer)
+library(chron)
+library(ivpack)
+library(rlang)
+library(panelr)
+library(readxl)
+library(cdlTools)
+library(stats)
+library(texreg)
+library(plyr)
+library(AER)
+library(ggpubr)
+library(ggpmisc)
+
+
+source("../../ram_rcode/PartialGMM2S.R")
+source("../../ram_rcode/mapToMat.R")
+source("../programs/gmm2s.R")
+source("../programs/gmm2s_iter.R")
+
+tol <- 1e-6    #set's tolerance to decide convergence of parameter estimate
+guess <- -99  
+maxiter <- 1000   #maximum iteration of iterated GMM procedure
+k_t <- 0         #I don't remember what this does
+yy <- 4        #Bartlett window goes from -yy to yy
+second <- 0      #Second moment independence if value = 1
+first_yr <- 1964
+end_yr <- 2005
+maxiter <- 50
+
+df <- read_dta("../data/cleaned_gis_panel_gdp.dta")
+df <- df[order(df$fips,df$year),]
+
+N <- length(unique(df$fips))
+hall <- subset(df,year>=first_yr & year<=end_yr)
+hall$F4Drbea_alt_nat_sc <- (1/N)*hall$F4Drbea_alt_nat
+hall$F4Drbea_alt_leaveout_sc <- (1/(N-1))*hall$F4Drbea_alt_leaveout
+
+```
+
+```{r}
+#-------Run AA and LS Decomp and aggregate only using the R code I wrote--------
+
+Ti <- length(hall$F4Drgdp_nat)/N
+
+hallAgg <- subset(hall,fips==1)
+
+y <- matrix(hallAgg$F4Drgdp_nat,Ti,1)
+X <- model.matrix(~F4Drbea_alt_nat,data=hallAgg)
+Z <- model.matrix(~F4Drbea_alt_nat,data=hallAgg)
+bm_agg <- gmm2s_iter(Ti,1,y,X,Z, yy, k_t,tol, guess, maxiter,second)
+
+#Iris:  here is y
+y <- matrix(hall$F4Drgdp,Ti*N,1)
+X <- model.matrix(~factor(fips) + F4Drbea_alt_nat,data=hall)
+Z <- model.matrix(~F4Drbea_alt_nat,data=hall)
+bm_aa <- gmm2s_iter(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
+
+#Iris:  Hereare are the local and spillover (ie. leaveout) variables in X
+X <- model.matrix(~factor(fips) + F4Drbea_alt + F4Drbea_alt_leaveout_sc,data=hall)
+Z <- model.matrix(~F4Drbea_alt + F4Drbea_alt_leaveout,data=hall)
+bm_lsd <- gmm2s_iter(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
+
+#Z <- model.matrix(~F4Drbea_inst + F4Drbea_leaveout_inst,data=hall)
+#iv_lsd <- gmm2s_iter(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
+
+table1 <- matrix(,8,4)
+colnames(table1) <- c("local","spillover","aggregate","pval")
+rownames(table1) <- c("agg","agg (se)","aa","aa (se)","lsd","lsd (se)",
+                       "iv lsd","iv lsd (se)")
+
+table1[c("agg","agg (se)","aa","aa (se)"),"aggregate"] <-
+  c(bm_agg$phi_hat["F4Drbea_dg_nat",1],
+    sqrt(bm_agg$Var["F4Drbea_dg_nat","F4Drbea_dg_nat"]),
+    bm_aa$phi_hat["F4Drbea_dg_nat_sc",1],
+    sqrt(bm_aa$Var["F4Drbea_dg_nat_sc","F4Drbea_dg_nat_sc"]))
+
+table1[c("aa","lsd","iv lsd"),"pval"] <-
+  c(bm_aa$pval,bm_lsd$pval,iv_lsd$pval)
+
+table1[c("lsd","lsd (se)","iv lsd","iv lsd (se)"),"local"] <-
+  c(bm_lsd$phi_hat["F4Drbea_dg",1],
+    sqrt(bm_lsd$Var["F4Drbea_dg","F4Drbea_dg"]),
+    iv_lsd$phi_hat["F4Drbea_dg",1],
+    sqrt(iv_lsd$Var["F4Drbea_dg","F4Drbea_dg"]))
+
+table1[c("lsd","lsd (se)","iv lsd","iv lsd (se)"),"spillover"] <-
+  c(bm_lsd$phi_hat["F4Drbea_dg_leaveout_sc",1],
+    sqrt(bm_lsd$Var["F4Drbea_dg_leaveout_sc","F4Drbea_dg_leaveout_sc"]),
+    iv_lsd$phi_hat["F4Drbea_dg_leaveout_sc",1],
+    sqrt(iv_lsd$Var["F4Drbea_dg_leaveout_sc","F4Drbea_dg_leaveout_sc"]))
+
+temp <- c("F4Drbea_dg","F4Drbea_dg_leaveout_sc")
+h <- matrix(c(1,1),1,2)
+
+table1[c("lsd","lsd (se)","iv lsd","iv lsd (se)"),"aggregate"] <-
+  c(h%*%matrix(bm_lsd$phi_hat[temp,1],2,1),
+    sqrt(h%*%bm_lsd$Var[temp,temp]%*%t(h)),
+    h%*%matrix(iv_lsd$phi_hat[temp,1],2,1),
+    sqrt(h%*%iv_lsd$Var[temp,temp]%*%t(h)))
+
+
+```
+
+```{r}
+gis <- read_dta("../data/cleaned_gis2_panel.dta")
+N <- length(unique(gis$fips))
+gis <- gis[order(gis$fips,gis$year),] %>%
+   subset(year>=first_yr & year<=end_yr) %>%
+   mutate(F4Drbea_dg_leaveout_sc = (1/(N-1))*F4Drbea_dg_leaveout,
+          F4Drbea_dg_nat_sc = (1/N)*F4Drbea_dg_nat)
+Ti <- length(gis$F4Drinc)/N
+
+y <- matrix(gis$F4Drinc,Ti*N,1)
+X <- model.matrix(~factor(fips) + F4Drbea_dg_nat_sc,data=gis)
+Z <- model.matrix(~F4Drbea_dg_nat_sc,data=gis)
+gis_aa <- gmm2S(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
+
+
+X <- model.matrix(~factor(fips) + F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=gis)
+Z <- model.matrix(~F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=gis)
+gis_lsd <- gmm2S(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
+
+
+
+```
+
+
+
+```{r}
+#----------------------Examine in the residualized y and spillover variable-----
+#full_regression <- lm(data=hall,Fhy ~ as.factor(fips) + x  + z - 1)
+#summary(full_regression)
+
+hall$y <- matrix(hall$F4Drgdp,Ti*N,1)
+hall$x <- hall$F4Drbea_alt
+
+partial_regression <- lm(data=hall,y ~ as.factor(fips) + x  - 1, na.action = "na.exclude")
+
+hall$y <- resid(partial_regression)
+hall$x <- hall$F4Drbea_alt_leaveout_sc
+myformula <-  y ~ x
+
+bmark_scatterplot_facet <- ggplot(data = hall, aes(x=x, y= y)) +
+  geom_text(data = hall, size = 3, aes(x=x, y= y, label = paste0(substr(year, 3 , 4)))) +
+  geom_smooth(data = hall, method = "lm", se = FALSE, color = "black", aes(x=x, y= y)) + theme_pubr() +
+  labs(x='Spillover', y='Residuals') +
+  #scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "darkgrey") + 
+  facet_wrap(~census) +
+     stat_poly_eq(formula = myformula, 
+                aes(label = paste(..eq.label.., sep = "~~~")), 
+                parse = TRUE)
+bmark_scatterplot_facet
+ggsave("../output/bmark_scatterplot_divisionfacet_spill.pdf", bmark_scatterplot_facet, device = "pdf", height = 6, width = 9)
+
+
+
+
+# Version with local on x axis
+
+hall$y <- matrix(hall$F4Drgdp,Ti*N,1)
+hall$x <- hall$F4Drbea_alt_leaveout_sc
+
+partial_regression <- lm(data=hall,y ~ as.factor(fips) + x  - 1, na.action = "na.exclude")
+
+hall$y <- resid(partial_regression)
+hall$x <- hall$F4Drbea_alt
+myformula <-  y ~ x
+
+bmark_scatterplot_facet <- ggplot(data = hall, aes(x=x, y= y)) +
+  geom_text(data = hall, size = 3, aes(x=x, y= y, label = paste0(substr(year, 3 , 4)))) +
+  geom_smooth(data = hall, method = "lm", se = FALSE, color = "black", aes(x=x, y= y)) + theme_pubr() +
+  labs(x='Local', y='Residuals') +
+  #scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "darkgrey") + 
+  facet_wrap(~census) +
+     stat_poly_eq(formula = myformula, 
+                aes(label = paste(..eq.label.., sep = "~~~")), 
+                parse = TRUE)
+bmark_scatterplot_facet
+ggsave("../output/bmark_scatterplot_divisionfacet_own.pdf", bmark_scatterplot_facet, device = "pdf", height = 6, width = 9)
+
+
+
+# 
+# # plot with dots
+# 
+# bmark_scatterplot_dots <- ggplot(hall, aes(x=Fhx2_spill, y= resid)) +
+#   geom_point(aes(color = Fhx2_nat)) +
+#   geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+#   labs(x='Spillover', y='Residuals') +
+#   scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "gray")
+# bmark_scatterplot_dots
+# ggsave("../output/bmark_scatterplot_dots.pdf", bmark_scatterplot_dots, device = "pdf", height = 5, width = 9)
+# 
+# 
+# # plot with labels
+# 
+# bmark_scatterplot_text <- ggplot(hall, aes(x=Fhx2_spill, y= resid)) +
+#   geom_text(size = 3,aes(color = Fhx2_nat,  label = paste0(substr(year, 3 , 4), "-", fips))) +
+#   geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+#   labs(x='Spillover', y='Residuals') +
+#   scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "gray")
+# bmark_scatterplot_text
+# ggsave("../output/bmark_scatterplot_text.pdf", bmark_scatterplot_text, device = "pdf", height = 5, width = 9)
+# 
+# 
+# 
+# # plot with different points
+# 
+# bmark_scatterplot_shapes <- ggplot(hall, aes(x=Fhx2_spill, y= resid)) +
+#   geom_point(aes(color = Fhx2_nat, shape = as.factor(fips))) +
+#  # geom_text(size = 3,aes(color = Fhx2_nat,  label = paste0(substr(year, 3 , 4), "-", fips))) +
+#   geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+#   labs(x='Spillover', y='Residuals') +
+#   scale_colour_gradient2("X", low = "darkred", high = "darkgreen", mid = "gray") + 
+#   scale_shape_manual("Division", values = c(0,1,2,3,4,5,6,7,8))
+# bmark_scatterplot_shapes
+# ggsave("../output/bmark_scatterplot_shapes.pdf", bmark_scatterplot_shapes, device = "pdf", height = 5, width = 9)
+# 
+# 
+# bmark_scatterplot_years <- ggplot(hall, aes(x=Fhx2_spill, y= resid)) +
+#   #geom_point(aes(color = Fhx2_nat, shape = as.factor(fips))) +
+#   geom_text(size = 3,aes(color = Fhx2_nat,  label = paste0(substr(year, 3 , 4)))) +
+#   geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+#   labs(x='Spillover', y='Residuals') +
+#   scale_colour_gradient2("X", low = "darkred", high = "darkgreen", mid = "gray") + 
+#   scale_shape_manual("Division", values = c(0,1,2,3,4,5,6,7,8))
+# bmark_scatterplot_years
+# ggsave("../output/bmark_scatterplot_years.pdf", bmark_scatterplot_years, device = "pdf", height = 5, width = 9)
+# 
+# 
+# bmark_scatterplot_comb <- ggplot(hall, aes(x=Fhx2_spill, y= resid)) +
+#   geom_point(aes(color = Fhx2_nat, shape = as.factor(fips))) +
+#   geom_text(nudge_x = .05, size = 3,aes(color = Fhx2_nat,  label = paste0(substr(year, 3 , 4)))) +
+#   geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+#   labs(x='Spillover', y='Residuals') +
+#   scale_colour_gradient2("X", low = "darkred", high = "darkgreen", mid = "gray") + 
+#   scale_shape_manual("Division", values = c(0,1,2,3,4,5,6,7,8))
+# bmark_scatterplot_comb
+# ggsave("../output/bmark_scatterplot_comb.pdf", bmark_scatterplot_comb, device = "pdf", height = 5, width = 9)
+# 
+# # even years
+# bmark_scatterplot_even <- ggplot(subset(hall, year %% 2 == 0), aes(x=Fhx2_spill, y= resid)) +
+#   geom_text(size = 3,aes(color = Fhx2_nat,  label = paste0(substr(year, 3 , 4), "-", fips))) +
+#   geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+#   labs(x='Spillover', y='Residuals') +
+#   scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "gray")
+# bmark_scatterplot_even
+# ggsave("../output/bmark_scatterplot_even.pdf", bmark_scatterplot_even, device = "pdf", height = 5, width = 9)
+# 
+# # odd years
+# bmark_scatterplot_odd <- ggplot(subset(hall, year %% 2 == 1), aes(x=Fhx2_spill, y= resid)) +
+#   geom_text(size = 3,aes(color = Fhx2_nat,  label = paste0(substr(year, 3 , 4), "-", fips))) +
+#   geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+#   labs(x='Spillover', y='Residuals') +
+#   scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "gray")
+# bmark_scatterplot_odd
+# ggsave("../output/bmark_scatterplot_odd.pdf", bmark_scatterplot_odd, device = "pdf", height = 5, width = 9)
+# 
+# 
+# 
+# hall_noyear <- hall %>%
+#    dplyr::rename(year2 = year)
+# 
+# bmark_scatterplot_facet <- ggplot() +
+#   geom_point(data = subset(hall_noyear), color = "gray", aes(x=Fhx2_spill, y= resid, color = "gray", shape = as.factor(fips))) +
+#   geom_point(data = subset(hall, year < 1973), aes(x=Fhx2_spill, y= resid, shape = as.factor(fips), color = Fhx2_nat)) +
+#   geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+#   labs(x='Spillover', y='Residuals') +
+#   scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "black") + 
+#   scale_shape_manual("Division", values = c(0,1,2,3,4,5,6,7,8)) +
+#   facet_wrap(~year)
+# bmark_scatterplot_facet
+# ggsave("../output/bmark_scatterplot_64_72.pdf", bmark_scatterplot_facet, device = "pdf", height = 5, width = 9)
+# 
+# 
+# bmark_scatterplot_facet <- ggplot() +
+#   geom_point(data = subset(hall_noyear), color = "gray", aes(x=Fhx2_spill, y= resid, color = "gray", shape = as.factor(fips))) +
+#   geom_point(data = subset(hall, year >= 1973 & year < 1982), aes(x=Fhx2_spill, y= resid, shape = as.factor(fips), color = Fhx2_nat)) +
+#   geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+#   labs(x='Spillover', y='Residuals') +
+#   scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "black") + 
+#   scale_shape_manual("Division", values = c(0,1,2,3,4,5,6,7,8)) +
+#   facet_wrap(~year)
+# bmark_scatterplot_facet
+# ggsave("../output/bmark_scatterplot_73_81.pdf", bmark_scatterplot_facet, device = "pdf", height = 5, width = 9)
+# 
+# 
+# bmark_scatterplot_facet <- ggplot() +
+#   geom_point(data = subset(hall_noyear), color = "gray", aes(x=Fhx2_spill, y= resid, color = "gray", shape = as.factor(fips))) +
+#   geom_point(data = subset(hall, year >= 1982 & year < 1991), aes(x=Fhx2_spill, y= resid, shape = as.factor(fips), color = Fhx2_nat)) +
+#   geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+#   labs(x='Spillover', y='Residuals') +
+#   scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "black") + 
+#   scale_shape_manual("Division", values = c(0,1,2,3,4,5,6,7,8)) +
+#   facet_wrap(~year)
+# bmark_scatterplot_facet
+# ggsave("../output/bmark_scatterplot_82_90.pdf", bmark_scatterplot_facet, device = "pdf", height = 5, width = 9)
+# 
+# 
+# bmark_scatterplot_facet <- ggplot() +
+#   geom_point(data = subset(hall_noyear), color = "gray", aes(x=Fhx2_spill, y= resid, color = "gray", shape = as.factor(fips))) +
+#   geom_point(data = subset(hall, year >= 1991), aes(x=Fhx2_spill, y= resid, shape = as.factor(fips), color = Fhx2_nat)) +
+#   geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+#   labs(x='Spillover', y='Residuals') +
+#   scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "black") + 
+#   scale_shape_manual("Division", values = c(0,1,2,3,4,5,6,7,8)) +
+#   facet_wrap(~year)
+# bmark_scatterplot_facet
+# ggsave("../output/bmark_scatterplot_91_02.pdf", bmark_scatterplot_facet, device = "pdf", height = 5, width = 9)
+# 
+# # need to get rid of fips so that I include all of the data points in gray
+# hall_nofips <- hall %>%
+#    dplyr::rename(fips2 = fips)
+# 
+# bmark_scatterplot_facet <- ggplot() +
+#   geom_text(data = hall_nofips, size = 3, color = "gray", aes(x=Fhx2_spill, y= resid, label = paste0(substr(year, 3 , 4)))) +
+#   geom_text(data = hall, size = 3, aes(x=Fhx2_spill, y= resid, color = Fhx2_nat, label = paste0(substr(year, 3 , 4)))) +
+#   geom_smooth(method = "lm", se = FALSE) + theme_pubr() +
+#   labs(x='Spillover', y='Residuals') +
+#   scale_colour_gradient2(low = "darkred", high = "darkgreen", mid = "black") + 
+#   scale_shape_manual("Division", values = c(0,1,2,3,4,5,6,7,8)) +
+#   facet_wrap(~fips)
+# bmark_scatterplot_facet
+# ggsave("../output/bmark_scatterplot_divisionfacet.pdf", bmark_scatterplot_facet, device = "pdf", height = 5, width = 9)
+# 
+
+
+
+```
+
+
+
+
+
+```{r}
+
+agg_regression <- lm(data=subset(hall,fips==1),Fhy_nat ~ Fhx2_nat)
+summary(agg_regression)
+
+agg_scatterplot <- ggplot(subset(hall,fips==1), aes(x=Fhx2_nat, y= Fhy_nat,label=year)) +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_text(hjust=0,vjust=0) + theme_pubr() +
+  labs(x='Change in defense spending', y='Change in ouput') 
+agg_scatterplot
+
+
+
+```
+
+
+

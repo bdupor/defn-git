@@ -1,11 +1,17 @@
-\def\sym#1{\ifmmode^{#1}\else\(^{#1}\)\fi}          \begin{tabular}{l*{4}{c}}          \hline
+\def\sym#1{\ifmmode^{#1}\else\(^{#1}\)\fi}          \begin{tabular}{l*{7}{c}}          \hline
   & (1) & (2) & (3)  & (4) \\ & Local & Spillover & Aggregate  & Overid. Test \\ \hline
-Aggregate, 1 Nationwide Region&                     &                     &        0.76         &            \\
-            &                     &                     &      (0.69)         &            \\
-Aggregate, 9 Divisions&                     &                     &        0.72\sym{**} &        0.34\\
-            &                     &                     &      (0.36)         &            \\
-Decomposition&        0.09         &        0.90\sym{**} &        0.99\sym{*}  &        0.28\\
-            &      (0.11)         &      (0.45)         &      (0.51)         &            \\
-Decomposition (IV)&        0.16         &        0.93\sym{**} &        1.10\sym{**} &        0.26\\
-            &      (0.12)         &      (0.46)         &      (0.52)         &            \\
+Aggregate, 1 nationwide group&                     &                     &        0.76         &            \\
+            &                     &                     &      (0.95)         &            \\
+Aggregate, 6 groups&                     &                     &        0.20\sym{**} &        0.07\\
+            &                     &                     &      (0.08)         &            \\
+Decomposition, 6 groups&        0.81\sym{*}  &        0.07         &        0.88\sym{**} &        0.12\\
+            &      (0.47)         &      (0.11)         &      (0.44)         &            \\
+Aggregate, 9 groups&                     &                     &        0.22\sym{***}&        0.17\\
+            &                     &                     &      (0.07)         &            \\
+Decomposition, 9 groups&        0.42\sym{*}  &        0.18\sym{**} &        0.60\sym{***}&        0.33\\
+            &      (0.23)         &      (0.08)         &      (0.23)         &            \\
+Aggregate, 9 census div.&                     &                     &       -0.04\sym{**} &        0.22\\
+            &                     &                     &      (0.02)         &            \\
+Decomposition, 9 census div.&        0.26         &       -0.05\sym{***}&        0.21         &        0.10\\
+            &      (0.23)         &      (0.02)         &      (0.23)         &            \\
 \hline          \end{tabular}

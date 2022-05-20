@@ -13,7 +13,7 @@ capture program drop PartialGMM2S
 * Save final results
 local do_print = "Y"
 * Thresholds for Standard Errors
-local Y0 = 5
+local Y0 = 10
 **** Choose Military spending panel 
 local gun bea_dg
 **** Horizon of LHS and RHS
@@ -21,14 +21,18 @@ local H = 4
 **** Horizon of Instrument
 local Hz = 2
 ***** Search
-local window = 15
+*local window = 4
+local window = 4
 local step_own = 5*0.040
-local step_spill = 5*0.025
+local step_spill = 2*0.025
+local first_yr = 1961
+local last_yr = 2006
 *===============================================================================
 * FACTOR METHOD
 *===============================================================================
 *forvalues mm = 2/3{
-forvalues mm = 2/2{
+
+forvalues mm = 2/2 {
 
 matrix drop _all
 
@@ -40,44 +44,38 @@ xtset fips year
 *** Identify Partition
 gen part = fips
 
+gen y  = F`H'Drinc
+gen Ly = L.F1Drinc
+gen Lx = (L.F1Dr`gun'_nat)
+gen Ly_nat = L.F1Drinc_nat
+
+keep if year>=`first_yr' & year<=`last_yr'
+bys fips:  gen shr = Linc_shr[1]
+gen x  = F`H'Dr`gun'
+gen xs  = shr*F`H'Dr`gun'_nat
+replace Lx = shr*Lx
+
+
+
 **** Clean up
-gen z     = F`Hz'Dr`gun'
+*gen z     = F`Hz'Dr`gun'
+gen z     = F`H'Dr`gun'
 gen z2    = F`Hz'DrLmilitary
 gen z_nat = F`H'Dr`gun'_nat
 
-gen y = F`H'Drinc
-gen x = F`H'Dr`gun'
-gen xs = F`H'Dr`gun'_leaveout 
-gen Ly_nat = L.F1Drgdp_nat
-gen Ly = L.F1Drinc
-gen Lx = L.F1Dr`gun'
+*gen y = F`H'Drinc
+*gen x = F`H'Dr`gun'
+*gen xs = F`H'Dr`gun'_leaveout 
 
-forvalues ii= 1(1)4 {
-	gen Ly`ii' = Ly
-	gen Lx`ii' = Lx
-}
-replace Ly1=0 if region~="Midwest"
-replace Ly2=0 if region~="Northeast"
-replace Ly3=0 if region~="South"
-replace Ly4=0 if region~="West"
+keep if year>=1960
 
-replace Lx1=0 if region~="Midwest"
-replace Lx2=0 if region~="Northeast"
-replace Lx3=0 if region~="South"
-replace Lx4=0 if region~="West"
+keep if ~missing(y) & ~missing(x) & ~missing(xs) & ~missing(z) & ~missing(z_nat)
 
-keep if ~missing(x) & ~missing(y) & ~missing(F`H'Dr`gun') & ~missing(Ly) & ~missing(Lx)
-
-foreach var in y x Ly Ly1 Ly2 Ly3 Ly4 Lx Lx1 Lx2 Lx3 Lx4{
+foreach var in z z_nat y x xs z2 {
 	egen aux = mean(`var'), by(fips)
 	replace `var' = `var' - aux
 	drop aux
 }
-
-
-ivreg2 y Ly1 Ly2 Ly3 Ly4 Lx1 Lx2 Lx3 Lx4 i.fips
-predict y_resid, resid
-
 
 xtset fips year
 
@@ -90,11 +88,12 @@ local T = r(N)
 	
 xtset fips year
 
-replace xs = xs / (`N'-1)
+*replace xs = xs / (`N'-1)
 
-mkmat y_resid , mat(y)
+mkmat y , mat(y)
 mkmat x xs , mat(x)
 mkmat x xs , mat(z)
+
 /*
 if `mm' == 2{
 mkmat z z_nat  , mat(z)
@@ -106,14 +105,13 @@ mkmat z2 z_nat  , mat(z)
 
 mkmat part if year == 2000, mat(part)
 
-
-PartialGMM2S,  t(`T') i(`N') dep(y) indep(x) instrument(z) yy(`Y0') partition(part) maxiter(1)
+PartialGMM2S,  t(`T') i(`N') dep(y) indep(x) instrument(z) yy(`Y0') partition(part) maxiter(200)
 mat phi    = e(phi)
 mat phi_2s = e(phi)
 mat phi_v  = e(Sigma)
 mat y_aux  = y - x*phi
 
-PartialGMM2S,  t(`T') i(`N') dep(y_aux) indep(z) instrument(z) yy(`Y0') partition(part) 
+PartialGMM2S,  t(`T') i(`N') dep(y_aux) indep(z) instrument(z) yy(`Y0') partition(part) maxiter(1)
 mat temp_Wald = e(Wald)
 
 
@@ -225,11 +223,9 @@ twoway scatter own spill if pv > 0.05  , msy(Oh) mc(black) || ///
 	   xtitle("Spillover") ytitle("Local")  
 
 if "`do_print'" == "Y"{	   
-graph export ../output/ci_blob_95_iv_`mm'.pdf,  replace
+graph export ../output/ci_blob_95_iv_`mm'_income_new.pdf,  replace
 }	   
 	   
-}
-
 	   
 	   
-	   
+}	   
