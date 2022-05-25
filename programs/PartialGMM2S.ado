@@ -180,6 +180,7 @@ mata{
 	
 		**** Collect Results
 		st_matrix("Omega", Omega_hat)
+		st_matrix("Omega_z", Omega_z)
 		st_matrix("phi",phi_hat)
 		st_matrix("phi_1st",phi_1st)
 		st_matrix("Sigma", var)
@@ -207,6 +208,7 @@ mata{
 		ereturn matrix Omega_u   = Omega_u
 		ereturn matrix iter      = iter
 		ereturn matrix diff      = diff
+		ereturn matrix Omega_z   = Omega_z
 
 end
 

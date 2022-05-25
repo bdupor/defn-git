@@ -52,42 +52,42 @@ source("../programs/gmm2s.R")
 
 tol <- 1e-6    #set's tolerance to decide convergence of parameter estimate
 guess <- -99  
-maxiter <- 1000   #maximum iteration of iterated GMM procedure
+maxiter <- 100   #maximum iteration of iterated GMM procedure
 k_t <- 0         #I don't remember what this does
 yy <- 4        #Bartlett window goes from -yy to yy
-second <- 0      #Second moment independence if value = 1
-first_yr <- 1961
+second <- 1      #Second moment independence if value = 1
+first_yr <- 1965
 end_yr <- 2005
 
-df <- read_dta("../data/cleaned_gis2_panel.dta")
+df <- read_dta("../data/cleaned_gis_panel_gdp.dta")
 df <- df[order(df$fips,df$year),]
 
 N <- length(unique(df$fips))
 hall <- subset(df,year>=first_yr & year<=end_yr)
-hall$F4Drbea_dg_nat_sc <- (1/N)*hall$F4Drbea_dg_nat
-hall$F4Drbea_dg_leaveout_sc <- (1/(N-1))*hall$F4Drbea_dg_leaveout
+hall$F4Drbea_alt_nat_sc <- (1/N)*hall$F4Drbea_alt_nat
+hall$F4Drbea_alt_leaveout_sc <- (1/(N-1))*hall$F4Drbea_alt_leaveout
 
 ```
 
 ```{r}
 #-------Run AA and LS Decomp and aggregate only using the R code I wrote--------
 
-Ti <- length(hall$F4Drinc)/N
+Ti <- length(hall$F4Drgdp)/N
 
 hallAgg <- subset(hall,fips==1)
 
-y <- matrix(hallAgg$F4Drinc_nat,Ti,1)
-X <- model.matrix(~F4Drbea_dg_nat,data=hallAgg)
-Z <- model.matrix(~F4Drbea_dg_nat,data=hallAgg)
+y <- matrix(hallAgg$F4Drgdp_nat,Ti,1)
+X <- model.matrix(~F4Drbea_alt_nat,data=hallAgg)
+Z <- model.matrix(~F4Drbea_alt_nat,data=hallAgg)
 bm_agg <- gmm2S(Ti,1,y,X,Z, yy, k_t,tol, guess, maxiter,second)
 
 #Iris:  here is y
-y <- matrix(hall$F4Drinc,Ti*N,1)
-X <- model.matrix(~factor(fips) + F4Drbea_dg_nat_sc,data=hall)
-Z <- model.matrix(~F4Drbea_dg_nat_sc,data=hall)
+y <- matrix(hall$F4Drgdp,Ti*N,1)
+X <- model.matrix(~factor(fips) + F4Drbea_alt_nat_sc,data=hall)
+Z <- model.matrix(~F4Drbea_alt_nat_sc,data=hall)
 bm_aa <- gmm2S(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)
 
-#Iris:  Hereare are the local and spillover (ie. leaveout) variables in X
+#Iris:  Here are the local and spillover (ie. leaveout) variables in X
 X <- model.matrix(~factor(fips) + F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=hall)
 Z <- model.matrix(~ F4Drbea_dg + F4Drbea_dg_leaveout_sc,data=hall)
 bm_lsd <- gmm2S(Ti,N,y,X,Z, yy, k_t,tol, guess, maxiter,second)

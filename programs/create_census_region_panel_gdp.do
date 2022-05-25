@@ -198,7 +198,7 @@ gen Lmilitary_all = Lmilitary + payroll
 **** Identify Psuedo-states 
 fips_to_census fips
 
-egen fips2 = group(census)
+egen fips2 = group(region)
 
 drop fips 
 rename fips2 fips
@@ -296,4 +296,4 @@ forvalues h = 2/10{
 	
 
 **** Save dataset
-save ../data/cleaned_census_panel_gdp.dta, replace
+save ../data/cleaned_census_region_panel_gdp.dta, replace
